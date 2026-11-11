@@ -69,6 +69,32 @@ def set_global_seeds(seed: int) -> None:
         torch.cuda.manual_seed_all(seed)
 
 
+def _replay_reward(
+    environment_id: str,
+    reward: float,
+    terminated: bool,
+    next_observation: np.ndarray,
+) -> float:
+    """Return the learning reward while preserving raw rewards for reporting.
+
+    CartPole's raw ``+1`` reward gives no direct indication of whether the state
+    is becoming safer. A bounded dense signal rewards a centered cart and upright
+    pole, while a true failure receives ``-1``. The 500-step TimeLimit is a
+    truncation, so successful episodes are not marked as failures.
+    """
+
+    if environment_id != "CartPole-v1":
+        return float(reward)
+    if terminated:
+        return -1.0
+
+    cart_position = abs(float(next_observation[0]))
+    pole_angle = abs(float(next_observation[2]))
+    position_score = max(0.0, 1.0 - cart_position / 2.4)
+    angle_score = max(0.0, 1.0 - pole_angle / np.deg2rad(12.0))
+    return 0.5 * (position_score + angle_score)
+
+
 def _build_network(observation_shape: tuple[int, ...], action_count: int) -> torch.nn.Module:
     if len(observation_shape) == 1:
         return MLPQNetwork(observation_shape[0], action_count)
@@ -236,7 +262,12 @@ def train(
                 replay.add(
                     observation,
                     action,
-                    float(reward),
+                    _replay_reward(
+                        config.environment_id,
+                        float(reward),
+                        bool(terminated),
+                        next_observation,
+                    ),
                     next_observation,
                     bool(terminated),
                 )

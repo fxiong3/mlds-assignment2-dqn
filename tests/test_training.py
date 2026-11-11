@@ -1,6 +1,7 @@
 from dataclasses import replace
 from pathlib import Path
 
+import numpy as np
 import pytest
 
 pytest.importorskip("gymnasium")
@@ -8,7 +9,7 @@ torch = pytest.importorskip("torch")
 
 from dqn_assignment.config import DQNConfig, ExperimentConfig
 from dqn_assignment.metrics import read_episode_records
-from dqn_assignment.training import evaluate_checkpoint, resolve_device, train
+from dqn_assignment.training import _replay_reward, evaluate_checkpoint, resolve_device, train
 
 
 def tiny_cartpole_config(output_dir: Path) -> ExperimentConfig:
@@ -40,6 +41,33 @@ def test_resolve_device_accepts_cpu_and_rejects_missing_cuda() -> None:
             resolve_device("cuda")
 
 
+@pytest.mark.parametrize(
+    ("environment_id", "reward", "terminated", "next_observation", "expected"),
+    [
+        ("CartPole-v1", 1.0, True, [0.0, 0.0, 0.0, 0.0], -1.0),
+        ("CartPole-v1", 1.0, False, [0.0, 0.0, 0.0, 0.0], 1.0),
+        ("CartPole-v1", 1.0, False, [1.2, 0.0, 0.10471976, 0.0], 0.5),
+        ("CartPole-v1", 1.0, False, [-1.2, 0.0, -0.10471976, 0.0], 0.5),
+        ("CartPole-v1", 1.0, False, [2.4, 0.0, 0.20943951, 0.0], 0.0),
+        ("CartPole-v1", 1.0, False, [4.8, 0.0, 0.41887902, 0.0], 0.0),
+        ("ALE/MsPacman-v5", 10.0, True, [0.0], 10.0),
+    ],
+)
+def test_replay_reward_shapes_only_cartpole(
+    environment_id: str,
+    reward: float,
+    terminated: bool,
+    next_observation: list[float],
+    expected: float,
+) -> None:
+    assert _replay_reward(
+        environment_id,
+        reward,
+        terminated,
+        np.asarray(next_observation, dtype=np.float32),
+    ) == pytest.approx(expected)
+
+
 def test_short_training_writes_metrics_checkpoint_and_plots(tmp_path: Path) -> None:
     config = tiny_cartpole_config(tmp_path / "run")
 
@@ -47,7 +75,9 @@ def test_short_training_writes_metrics_checkpoint_and_plots(tmp_path: Path) -> N
 
     assert result.checkpoint_path.exists()
     assert result.metrics_path.exists()
-    assert len(read_episode_records(result.metrics_path)) == 2
+    records = read_episode_records(result.metrics_path)
+    assert len(records) == 2
+    assert all(record.reward == record.length for record in records)
     assert (config.output_dir / "plots" / "episode_rewards.png").exists()
     assert (config.output_dir / "plots" / "max_q_values.png").exists()
     assert (config.output_dir / "plots" / "action_frequency_heatmap.png").exists()

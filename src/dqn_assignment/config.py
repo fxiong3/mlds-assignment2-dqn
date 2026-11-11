@@ -119,10 +119,11 @@ def preset_for(name: str) -> ExperimentConfig:
                 replay_capacity=50_000,
                 warmup_steps=1_000,
                 train_frequency=1,
-                target_update_interval=500,
+                target_update_interval=100,
                 epsilon_start=1.0,
                 epsilon_end=0.02,
-                epsilon_decay_steps=25_000,
+                epsilon_decay_steps=15_000,
+                double_dqn=True,
             ),
         )
     if normalized in {"mspacman", "pacman"}:

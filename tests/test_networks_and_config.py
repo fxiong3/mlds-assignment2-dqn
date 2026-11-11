@@ -41,6 +41,12 @@ def test_cartpole_preset_uses_assignment_discount_factor() -> None:
 
     assert preset.environment_id == "CartPole-v1"
     assert preset.dqn.gamma == pytest.approx(0.95)
+    assert preset.dqn.learning_rate == pytest.approx(1e-3)
+    assert preset.dqn.batch_size == 128
+    assert preset.dqn.warmup_steps == 1_000
+    assert preset.dqn.target_update_interval == 100
+    assert preset.dqn.epsilon_decay_steps == 15_000
+    assert preset.dqn.double_dqn is True
 
 
 def test_mspacman_preset_uses_assignment_discount_factor() -> None:

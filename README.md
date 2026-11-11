@@ -57,8 +57,8 @@ Equivalent direct commands:
 > idle-GPU preflight.
 
 ```bash
-.venv/bin/python -m dqn_assignment train --env cartpole --episodes 600 \
-  --output runs/cartpole_seed42 --device cpu
+.venv/bin/python -m dqn_assignment train --env cartpole --episodes 250 --seed 49 \
+  --output runs/cartpole_seed49 --device cpu
 
 CUDA_VISIBLE_DEVICES=2 .venv/bin/python -m dqn_assignment train --env mspacman \
   --episodes 6000 --output runs/mspacman_seed42 --device cuda
@@ -69,6 +69,11 @@ Important defaults match the assignment: CartPole uses `gamma=0.95`; MsPacman us
 frames are stacked so the state encodes motion. MsPacman stores the stacks as `int8` in
 replay and converts them to float only when sampled. At the default 50,000-transition
 capacity, state/next-state storage is approximately 2.8 GB of host RAM.
+
+CartPole uses bounded reward shaping only inside replay: centered cart and upright-pole
+states receive higher learning rewards, and true failure receives `-1`. Raw Gymnasium
+rewards are retained for training curves, validation, and the required 500-episode
+evaluation. A 500-step `TimeLimit` truncation is treated as success, not failure.
 
 Run long jobs inside `tmux` so the process survives a dropped SSH connection:
 
@@ -108,7 +113,7 @@ Training automatically generates:
 Regenerate them without retraining:
 
 ```bash
-.venv/bin/python -m dqn_assignment plot --run-dir runs/cartpole_seed42
+.venv/bin/python -m dqn_assignment plot --run-dir runs/cartpole_seed49
 ```
 
 ## Quantitative validation
@@ -117,7 +122,7 @@ Run a trained-versus-random comparison and inspect the first ten greedy decision
 
 ```bash
 .venv/bin/python -m dqn_assignment validate \
-  --checkpoint runs/cartpole_seed42/checkpoints/final.pt \
+  --checkpoint runs/cartpole_seed49/checkpoints/final.pt \
   --episodes 30 --trace-steps 10 --device cpu
 
 CUDA_VISIBLE_DEVICES=0 .venv/bin/python -m dqn_assignment validate \
@@ -152,6 +157,7 @@ Other supported overrides include `--learning-rate`, `--batch-size`, `--warmup-s
 - Target parameters are synchronized at initialization and at a fixed environment-step interval.
 - Evaluation uses `epsilon=0` and seeds separate from training.
 - CartPole's 500-step time limit is treated as successful truncation, not failure.
+- CartPole reward shaping affects replay targets only; every reported score is the raw reward.
 - MsPacman observations are shape-checked before preprocessing and stored as `int8`.
 - Checkpoints and CSV metrics are written through temporary files before replacement.
 
